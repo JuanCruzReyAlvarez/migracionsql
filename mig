@@ -1,4 +1,3 @@
-
 USE [finalpruebatp]
 GO
 
@@ -684,19 +683,23 @@ GO
 
 CREATE PROCEDURE [PANINI_GDD].insertar_ventas 
 AS
-BEGIN
-	
-		SELECT VENTA_CODIGO, VENTA_MEDIO_PAGO, VENTA_MEDIO_PAGO_COSTO, VENTA_DESCUENTO_IMPORTE INTO #MEDIO_PAGO_VENTAS FROM [gd_esquema].[Maestra] maestra
+BEGIN 
+		
+		SELECT maestra.VENTA_CODIGO, maestra.VENTA_FECHA, maestra.CLIENTE_PROVINCIA,
+		maestra.CLIENTE_CODIGO_POSTAL, maestra.VENTA_MEDIO_PAGO, 
+		maestra. VENTA_MEDIO_PAGO_COSTO, maestra.VENTA_DESCUENTO_IMPORTE, maestra.VENTA_TOTAL,
+		maestra.VENTA_MEDIO_ENVIO, maestra.VENTA_ENVIO_PRECIO, maestra.VENTA_CANAL_COSTO,
+		maestra.VENTA_CANAL, maestra.CLIENTE_NOMBRE, maestra.CLIENTE_APELLIDO,
+		maestra.CLIENTE_DNI, maestra.CLIENTE_DIRECCION
+		INTO #MEDIO_PAGO_VENTAS FROM [gd_esquema].[Maestra] maestra
 		WHERE VENTA_CODIGO IS NOT NULL
 
 		UPDATE #MEDIO_PAGO_VENTAS SET VENTA_DESCUENTO_IMPORTE = 0 WHERE VENTA_DESCUENTO_IMPORTE IS NULL
 
-
-
 		INSERT INTO [PANINI_GDD].VENTA 	
 		( COD_VENTA, FECHA_VENTA, ID_CLIENTE, ID_CANAL_VENTA, ID_MEDIO_ENVIO, ID_MEDIO_PAGO, TOTAL_VENTA, PRECIO_ENVIO, CANAL_COSTO, COSTO_TRANSACCION) 
-		SELECT DISTINCT  maestra.VENTA_CODIGO, maestra.VENTA_FECHA, cliente.ID_CLIENTE, canalDeVenta.ID_CANAL_VENTA, medioDeEnvio.ID_MEDIO_ENVIO,
-		ID_MEDIO_PAGO, maestra.VENTA_TOTAL, maestra.VENTA_ENVIO_PRECIO, maestra.VENTA_CANAL_COSTO, maestra.VENTA_MEDIO_PAGO_COSTO FROM [gd_esquema].[Maestra] maestra
+		SELECT DISTINCT maestra.VENTA_CODIGO, maestra.VENTA_FECHA, cliente.ID_CLIENTE, canalDeVenta.ID_CANAL_VENTA, medioDeEnvio.ID_MEDIO_ENVIO,  (SELECT top 1 r.ID_MEDIO_PAGO FROM [PANINI_GDD].[MEDIO_DE_PAGO] r WHERE r.ID_MEDIO_PAGO = medioDePago.ID_MEDIO_PAGO ) ID_MEDIO_PAGO,
+		maestra.VENTA_TOTAL, maestra.VENTA_ENVIO_PRECIO, maestra.VENTA_CANAL_COSTO, maestra.VENTA_MEDIO_PAGO_COSTO FROM #MEDIO_PAGO_VENTAS maestra
 		INNER JOIN [PANINI_GDD].[PROVINCIA]  provincia
 		ON provincia.NOMBRE_PROV = maestra.CLIENTE_PROVINCIA
 		INNER JOIN [PANINI_GDD].[CODIGO_POSTAL] codigoPostal
@@ -708,19 +711,35 @@ BEGIN
 		INNER JOIN [PANINI_GDD].[canal_venta] canalDeVenta
 		ON maestra.VENTA_CANAL_COSTO = canalDeVenta.[CANAL_COSTO] AND maestra.VENTA_CANAL = canalDeVenta.[CANAL_VENTA]
 		INNER JOIN [PANINI_GDD].[cliente] cliente
-		ON	maestra.CLIENTE_NOMBRE		= cliente.NOMBRE_CLIENTE AND maestra.CLIENTE_APELLIDO = cliente.APELLIDO_CLIENTE AND maestra.CLIENTE_DNI = cliente.DNI_CLIENTE AND maestra.CLIENTE_DIRECCION = cliente.DIRECCION_CLIENTE
-
-
-			--INSERT INTO PANINI_GDD.VENTA_MEDIANTE_CUPON (COD_VENTA, CODIGO_CUPON, IMPORTE)
-			--VALUES (@codVenta, @cuponCod, @cuponImporte)
-
-			-- Hay que hacer este insert tambien porque nosotros lo metiamos por aca
-		
+		ON	maestra.CLIENTE_NOMBRE	= cliente.NOMBRE_CLIENTE AND maestra.CLIENTE_APELLIDO = cliente.APELLIDO_CLIENTE AND maestra.CLIENTE_DNI = cliente.DNI_CLIENTE AND maestra.CLIENTE_DIRECCION = cliente.DIRECCION_CLIENTE
+		ORDER BY VENTA_CODIGO
 
 END
 GO
 
-select * from [PANINI_GDD].VENTA
+CREATE PROCEDURE [PANINI_GDD].terminar_medio_de_pago
+AS
+BEGIN
+declare @vc decimal(19,0)
+declare @mp decimal(19,0)
+declare mpcursor cursor for (select COD_VENTA, ID_MEDIO_PAGO from [PANINI_GDD].VENTA )
+open mpcursor
+fetch next from mpcursor into @vc,@mp
+while(@@FETCH_STATUS=0)
+begin
+	if( (select COUNT(ID_MEDIO_PAGO) from [PANINI_GDD].VENTA where COD_VENTA = @vc) > 1)
+	begin
+		if(( select VALOR_DESC from  [PANINI_GDD].[MEDIO_DE_PAGO] where ID_MEDIO_PAGO = @mp ) = 0.00 )
+			begin	
+				delete from [PANINI_GDD].VENTA where COD_VENTA=@vc AND ID_MEDIO_PAGO = @mp	
+			end
+	end
+fetch next from mpcursor into @vc,@mp
+end
+close mpcursor
+deallocate mpcursor
+END 
+GO
 
 CREATE PROCEDURE [PANINI_GDD].insertar_venta_mediante_cupon
 AS
@@ -797,7 +816,9 @@ BEGIN
 		exec [PANINI_GDD].insertar_compras  -- 0 segundos
 		exec [PANINI_GDD].insertar_compra_producto -- 6 segundos
 		
-		exec [PANINI_GDD].insertar_ventas  -- 13 minutos 43 segundos
+		exec [PANINI_GDD].insertar_ventas  -- Antes: 13 minutos 43 segundos, Ahora: 1 minuto 18 segundos
+		exec [PANINI_GDD].terminar_medio_de_pago
+		select * from [PANINI_GDD].VENTA
 		exec [PANINI_GDD].insertar_venta_mediante_cupon
 		exec [PANINI_GDD].insertar_venta_producto -- 4 segundos
 		EXEC [PANINI_GDD].insertar_descuentos_fijos_de_ventas -- 3 segundos
