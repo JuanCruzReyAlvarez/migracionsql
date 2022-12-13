@@ -1,3 +1,4 @@
+
 USE [finalpruebatp]
 GO
 
@@ -729,8 +730,6 @@ end
 close mpcursor
 deallocate mpcursor
 
-SELECT * FROM [PANINI_GDD].#PREVENTA
-
 	INSERT INTO [PANINI_GDD].VENTA 	
 		( COD_VENTA, FECHA_VENTA, ID_CLIENTE, ID_CANAL_VENTA, ID_MEDIO_ENVIO, ID_MEDIO_PAGO, TOTAL_VENTA, PRECIO_ENVIO, CANAL_COSTO, COSTO_TRANSACCION) 
 		SELECT * FROM #PREVENTA
@@ -814,11 +813,11 @@ BEGIN
 		exec [PANINI_GDD].insertar_compras  -- 0 segundos
 		exec [PANINI_GDD].insertar_compra_producto -- 6 segundos
 		
-		exec [PANINI_GDD].insertar_ventas  -- Antes: 13 minutos 43 segundos, Ahora: 1 minuto 19 segundos
-		select * from [PANINI_GDD].VENTA
-		exec [PANINI_GDD].insertar_venta_mediante_cupon
+		exec [PANINI_GDD].insertar_ventas  --  Ahora: 1 minuto 19 segundos, Antes: 13 minutos 43 segundos,
+		
+		exec [PANINI_GDD].insertar_venta_mediante_cupon -- 0 SEGUNDOS
 		exec [PANINI_GDD].insertar_venta_producto -- 4 segundos
-		EXEC [PANINI_GDD].insertar_descuentos_fijos_de_ventas -- 3 segundos
+		exec [PANINI_GDD].insertar_descuentos_fijos_de_ventas -- 3 segundos
 		
 		COMMIT TRANSACTION
 	END TRY
